@@ -19,12 +19,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.comandapos.components.SummaryCard
+import com.example.comandapos.data.OrderRepository
+import com.example.comandapos.data.OrderStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onProductsClick: () -> Unit
+    onProductsClick: () -> Unit,
+    onNewOrderClick: () -> Unit,
+    onKitchenClick: () -> Unit,
+    onHistoryClick: () -> Unit
 ) {
+    val orders = OrderRepository.orders
+
+    val pendingOrders = orders.count { order ->
+        order.status != OrderStatus.COMPLETED
+    }
+
+    val completedSales = orders
+        .filter { order ->
+            order.status == OrderStatus.COMPLETED
+        }
+        .sumOf { order ->
+            order.total
+        }
+
+    val availableProducts = 4
     Scaffold(
         topBar = {
             TopAppBar(
@@ -45,9 +65,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    // Después abrirá una nueva orden
-                }
+                    onClick = onNewOrderClick
             ) {
                 Text("+")
             }
@@ -72,21 +90,21 @@ fun HomeScreen(
             item {
                 SummaryCard(
                     title = "Ventas del día",
-                    value = "$0.00"
+                    value = "$${"%.2f".format(completedSales)}"
                 )
             }
 
             item {
                 SummaryCard(
                     title = "Órdenes pendientes",
-                    value = "0"
+                    value = pendingOrders.toString()
                 )
             }
 
             item {
                 SummaryCard(
                     title = "Productos disponibles",
-                    value = "4"
+                    value = availableProducts.toString()
                 )
             }
 
@@ -101,7 +119,7 @@ fun HomeScreen(
 
             item {
                 Button(
-                    onClick = {},
+                    onClick = onKitchenClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Pedidos de cocina")
@@ -110,7 +128,7 @@ fun HomeScreen(
 
             item {
                 Button(
-                    onClick = {},
+                    onClick = onHistoryClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Historial de ventas")
