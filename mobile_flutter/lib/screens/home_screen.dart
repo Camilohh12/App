@@ -8,6 +8,9 @@ import 'kitchen_screen.dart';
 import 'new_order_screen.dart';
 import 'products_screen.dart';
 
+import '../providers/auth_provider.dart';
+import 'login_screen.dart';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -27,6 +30,23 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            onPressed: () {
+              context.read<AuthProvider>().logout();
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LoginScreen(),
+                ),
+                    (_) => false,
+              );
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
