@@ -1,54 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../models/product.dart';
-
-const availableProducts = [
-  Product(
-    id: 1,
-    name: 'Hamburguesa clásica',
-    price: 75,
-    category: 'Hamburguesas',
-  ),
-  Product(
-    id: 2,
-    name: 'Papas fritas',
-    price: 40,
-    category: 'Complementos',
-  ),
-  Product(
-    id: 3,
-    name: 'Refresco',
-    price: 25,
-    category: 'Bebidas',
-  ),
-  Product(
-    id: 4,
-    name: 'Pastel de chocolate',
-    price: 45,
-    category: 'Postres',
-  ),
-];
+import '../providers/product_provider.dart';
 
 class ProductsScreen extends StatelessWidget {
   const ProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final products = context.watch<ProductProvider>().products;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Productos'),
       ),
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: availableProducts.length,
+        itemCount: products.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          final product = availableProducts[index];
+          final product = products[index];
 
           return Card(
             child: ListTile(
-              leading: const CircleAvatar(
-                child: Icon(Icons.fastfood),
+              leading: CircleAvatar(
+                child: Icon(
+                  product.stock > 0
+                      ? Icons.fastfood
+                      : Icons.block,
+                ),
               ),
               title: Text(
                 product.name,
@@ -56,7 +36,11 @@ class ProductsScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: Text(product.category),
+              subtitle: Text(
+                '${product.category}\n'
+                    'Stock: ${product.stock}',
+              ),
+              isThreeLine: true,
               trailing: Text(
                 '\$${product.price.toStringAsFixed(2)}',
                 style: Theme.of(context).textTheme.titleMedium,

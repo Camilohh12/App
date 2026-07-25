@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/order.dart';
+import '../models/product.dart';
 import '../providers/order_provider.dart';
+import '../providers/product_provider.dart';
 import 'products_screen.dart';
 
 class NewOrderScreen extends StatefulWidget {
@@ -14,6 +16,10 @@ class NewOrderScreen extends StatefulWidget {
 
 class _NewOrderScreenState extends State<NewOrderScreen> {
   final Map<int, int> quantities = {};
+
+  List<Product> get availableProducts {
+    return context.read<ProductProvider>().availableProducts;
+  }
 
   int getQuantity(int productId) {
     return quantities[productId] ?? 0;

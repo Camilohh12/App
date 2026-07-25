@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import 'home_screen.dart';
+import '../models/user.dart';
+import 'cashier_home_screen.dart';
+import 'kitchen_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,10 +67,32 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final user = context.read<AuthProvider>().currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    Widget destination;
+
+    switch (user.role) {
+      case UserRole.admin:
+        destination = const HomeScreen();
+        break;
+
+      case UserRole.cashier:
+        destination = const CashierHomeScreen();
+        break;
+
+      case UserRole.kitchen:
+        destination = const KitchenScreen();
+        break;
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => const HomeScreen(),
+        builder: (_) => destination,
       ),
     );
   }

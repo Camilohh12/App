@@ -4,8 +4,23 @@ import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/order_provider.dart';
 
+import '../providers/auth_provider.dart';
+import 'login_screen.dart';
+
 class KitchenScreen extends StatelessWidget {
   const KitchenScreen({super.key});
+
+  void logout(BuildContext context) {
+    context.read<AuthProvider>().logout();
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LoginScreen(),
+      ),
+          (_) => false,
+    );
+  }
 
   String statusText(OrderStatus status) {
     switch (status) {
@@ -28,6 +43,13 @@ class KitchenScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pedidos de cocina'),
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            onPressed: () => logout(context),
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       body: orders.isEmpty
           ? const Center(
@@ -129,17 +151,21 @@ class _OrderActionButton extends StatelessWidget {
         );
 
       case OrderStatus.ready:
-        return FilledButton(
-          onPressed: () {
-            provider.updateStatus(
-              order.id,
-              OrderStatus.completed,
-            );
-          },
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(45),
+        return const Card(
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_outline),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Orden lista. Esperando cobro del cajero.',
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: const Text('Finalizar venta'),
         );
 
       case OrderStatus.completed:

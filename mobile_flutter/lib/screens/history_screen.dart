@@ -1,10 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/order.dart';
 import '../providers/order_provider.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
+
+  String paymentMethodText(PaymentMethod? method) {
+    switch (method) {
+      case PaymentMethod.cash:
+        return 'Efectivo';
+      case PaymentMethod.card:
+        return 'Tarjeta';
+      case PaymentMethod.transfer:
+        return 'Transferencia';
+      case null:
+        return 'No registrado';
+    }
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) {
+      return 'Sin fecha';
+    }
+
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+
+    return '$day/$month/$year $hour:$minute';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +54,8 @@ class HistoryScreen extends StatelessWidget {
           : ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: completedOrders.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) =>
+        const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final order = completedOrders[index];
 
@@ -33,7 +63,8 @@ class HistoryScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Venta #${order.id}',
@@ -44,21 +75,65 @@ class HistoryScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    'Fecha: ${formatDate(order.completedAt)}',
+                  ),
+
                   const Divider(),
+
                   ...order.items.map(
-                        (item) => Text(
-                      '${item.quantity} x ${item.product.name}',
+                        (item) => Padding(
+                      padding:
+                      const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${item.quantity} x '
+                            '${item.product.name}',
+                      ),
                     ),
                   ),
+
                   const SizedBox(height: 12),
+
                   Text(
-                    'Total: \$${order.total.toStringAsFixed(2)}',
+                    'Total: '
+                        '\$${order.total.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text('Estado: Finalizada'),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    'Método de pago: '
+                        '${paymentMethodText(order.paymentMethod)}',
+                  ),
+
+                  if (order.paymentMethod ==
+                      PaymentMethod.cash) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Monto recibido: '
+                          '\$${(order.amountReceived ?? 0).toStringAsFixed(2)}',
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Cambio: '
+                          '\$${(order.change ?? 0).toStringAsFixed(2)}',
+                    ),
+                  ],
+
+                  const SizedBox(height: 6),
+
+                  const Text(
+                    'Estado: Finalizada',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),

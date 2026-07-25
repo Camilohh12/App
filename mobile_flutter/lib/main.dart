@@ -5,6 +5,8 @@ import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/login_screen.dart';
 
+import 'providers/product_provider.dart';
+
 void main() {
   runApp(const ComandaPosApp());
 }
@@ -21,6 +23,9 @@ class ComandaPosApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => OrderProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ProductProvider(),
         ),
       ],
       child: MaterialApp(
