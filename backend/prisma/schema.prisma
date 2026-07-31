@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  orders    Order[]
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String
+  products  Product[]
+}
+
+model Product {
+  id          Int        @id @default(autoincrement())
+  name        String
+  price       Float
+  stock       Int
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id])
+  details     OrderDetail[]
+}
+
+model Table {
+  id      Int      @id @default(autoincrement())
+  number  Int      @unique
+  status  String
+  orders  Order[]
+}
+
+model Order {
+  id        Int           @id @default(autoincrement())
+  date      DateTime      @default(now())
+  status    String
+  total     Float
+
+  userId    Int
+  tableId   Int
+
+  user       User         @relation(fields: [userId], references: [id])
+  table      Table        @relation(fields: [tableId], references: [id])
+  details    OrderDetail[]
+}
+
+model OrderDetail {
+  id         Int      @id @default(autoincrement())
+
+  quantity   Int
+  subtotal   Float
+
+  orderId    Int
+  productId  Int
+
+  order       Order     @relation(fields: [orderId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+}

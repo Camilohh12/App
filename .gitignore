@@ -1,0 +1,21 @@
+# Flutter
+mobile_flutter/.dart_tool/
+mobile_flutter/build/
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/generated/
+
+# Archivos de herramientas / IA / editores
+backend/.agents/
+backend/.claude/
+backend/.windsurf/
+backend/skills-lock.json
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
