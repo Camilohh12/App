@@ -5,6 +5,9 @@ import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/login_screen.dart';
 
+import 'providers/product_provider.dart';
+import 'providers/table_provider.dart';
+
 void main() {
   runApp(const ComandaPosApp());
 }
@@ -22,6 +25,12 @@ class ComandaPosApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => OrderProvider(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => ProductProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => TableProvider(),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -31,6 +40,18 @@ class ComandaPosApp extends StatelessWidget {
             seedColor: Colors.deepOrange,
           ),
           useMaterial3: true,
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          ),
         ),
         home: const LoginScreen(),
       ),
