@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import 'product_provider.dart';
+import 'table_provider.dart';
 
 enum PaymentResult {
   success,
@@ -18,7 +19,9 @@ class OrderProvider extends ChangeNotifier {
 
   List<FoodOrder> get activeOrders {
     return _orders
-        .where((order) => order.status != OrderStatus.completed)
+        .where((order) =>
+    order.status != OrderStatus.completed &&
+        order.status != OrderStatus.cancelled)
         .toList();
   }
 
@@ -43,16 +46,32 @@ class OrderProvider extends ChangeNotifier {
 
   int get pendingOrders => activeOrders.length;
 
-  void addOrder(List<OrderItem> items) {
-    if (items.isEmpty) return;
+  /// Crea una nueva orden. Para servicio en mesa (`dineIn`) se requiere
+  /// `tableId` y la mesa debe estar disponible; se marca como ocupada
+  /// al confirmar. Para `takeaway` no se requiere mesa.
+  bool addOrder(
+      List<OrderItem> items, {
+        required ServiceType serviceType,
+        int? tableId,
+        required TableProvider tableProvider,
+      }) {
+    if (items.isEmpty) return false;
+
+    if (serviceType == ServiceType.dineIn) {
+      if (tableId == null) return false;
+      if (!tableProvider.occupyTable(tableId)) return false;
+    }
 
     final order = FoodOrder(
       id: _orders.length + 1,
       items: items,
+      serviceType: serviceType,
+      tableId: serviceType == ServiceType.dineIn ? tableId : null,
     );
 
     _orders.add(order);
     notifyListeners();
+    return true;
   }
 
   void updateStatus(
@@ -72,11 +91,43 @@ class OrderProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cancela una orden en estado pendiente o en preparación. No
+  /// permite cancelar órdenes listas, ya finalizadas o ya canceladas.
+  /// Como no se ha cobrado, no se descuenta stock; si la orden tenía
+  /// una mesa asignada, se libera.
+  bool cancelOrder(
+      int orderId, {
+        required TableProvider tableProvider,
+      }) {
+    final index = _orders.indexWhere(
+          (order) => order.id == orderId,
+    );
+
+    if (index == -1) return false;
+
+    final order = _orders[index];
+
+    if (order.status != OrderStatus.pending &&
+        order.status != OrderStatus.preparing) {
+      return false;
+    }
+
+    _orders[index] = order.copyWith(status: OrderStatus.cancelled);
+
+    if (order.serviceType == ServiceType.dineIn && order.tableId != null) {
+      tableProvider.freeTable(order.tableId!);
+    }
+
+    notifyListeners();
+    return true;
+  }
+
   PaymentResult completePayment({
     required int orderId,
     required PaymentMethod paymentMethod,
     required double amountReceived,
     required ProductProvider productProvider,
+    required TableProvider tableProvider,
   }) {
     final index = _orders.indexWhere(
           (order) => order.id == orderId,
@@ -117,6 +168,10 @@ class OrderProvider extends ChangeNotifier {
       completedAt: DateTime.now(),
       stockDiscounted: true,
     );
+
+    if (order.serviceType == ServiceType.dineIn && order.tableId != null) {
+      tableProvider.freeTable(order.tableId!);
+    }
 
     notifyListeners();
     return PaymentResult.success;

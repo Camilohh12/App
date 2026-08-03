@@ -20,6 +20,16 @@ class HistoryScreen extends StatelessWidget {
     }
   }
 
+  String serviceText(FoodOrder order) {
+    if (order.serviceType == ServiceType.takeaway) {
+      return 'Para llevar';
+    }
+
+    return order.tableId != null
+        ? 'Mesa ${order.tableId}'
+        : 'En mesa';
+  }
+
   String formatDate(DateTime? date) {
     if (date == null) {
       return 'Sin fecha';
@@ -82,15 +92,36 @@ class HistoryScreen extends StatelessWidget {
                     'Fecha: ${formatDate(order.completedAt)}',
                   ),
 
+                  const SizedBox(height: 4),
+
+                  Text(serviceText(order)),
+
                   const Divider(),
 
                   ...order.items.map(
                         (item) => Padding(
                       padding:
                       const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '${item.quantity} x '
-                            '${item.product.name}',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${item.quantity} x '
+                                '${item.product.name}',
+                          ),
+                          if (item.note != null &&
+                              item.note!.isNotEmpty)
+                            Padding(
+                              padding:
+                              const EdgeInsets.only(left: 12),
+                              child: Text(
+                                'Obs: ${item.note}',
+                                style: const TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/order_provider.dart';
 import '../providers/product_provider.dart';
+import '../providers/table_provider.dart';
 
 String paymentResultMessage(PaymentResult result) {
   switch (result) {
@@ -177,6 +178,7 @@ class _PaymentDetailScreenState
       paymentMethod: selectedMethod,
       amountReceived: amount,
       productProvider: context.read<ProductProvider>(),
+      tableProvider: context.read<TableProvider>(),
     );
 
     if (result != PaymentResult.success) {

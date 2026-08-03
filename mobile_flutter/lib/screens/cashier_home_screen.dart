@@ -7,6 +7,8 @@ import 'login_screen.dart';
 import 'new_order_screen.dart';
 import 'payment_screen.dart';
 import 'products_screen.dart';
+import 'qr_scanner_screen.dart';
+import 'tables_screen.dart';
 
 class CashierHomeScreen extends StatelessWidget {
   const CashierHomeScreen({super.key});
@@ -30,12 +32,17 @@ class CashierHomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('ComandaPOS'),
+            const Text(
+              'ComandaPOS',
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(
               'Cajero: ${user?.name ?? ''}',
               style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -96,6 +103,36 @@ class CashierHomeScreen extends StatelessWidget {
             },
             icon: const Icon(Icons.fastfood),
             label: const Text('Consultar productos'),
+          ),
+
+          const SizedBox(height: 12),
+
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TablesScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.table_bar),
+            label: const Text('Mesas'),
+          ),
+
+          const SizedBox(height: 12),
+
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const QrScannerScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('Escanear mesa (QR)'),
           ),
 
           const SizedBox(height: 12),

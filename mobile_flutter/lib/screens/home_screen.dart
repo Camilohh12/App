@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/order_provider.dart';
+import '../providers/product_provider.dart';
 import '../widgets/summary_card.dart';
 import 'history_screen.dart';
+import 'inventory_screen.dart';
 import 'kitchen_screen.dart';
 import 'new_order_screen.dart';
 import 'products_screen.dart';
@@ -17,16 +19,22 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orderProvider = context.watch<OrderProvider>();
+    final productCount = context.watch<ProductProvider>().products.length;
 
     return Scaffold(
       appBar: AppBar(
         title: const Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ComandaPOS'),
+            Text(
+              'ComandaPOS',
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(
               'Punto de venta para negocios de comida',
               style: TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -81,9 +89,9 @@ class HomeScreen extends StatelessWidget {
             title: 'Órdenes pendientes',
             value: orderProvider.pendingOrders.toString(),
           ),
-          const SummaryCard(
+          SummaryCard(
             title: 'Productos disponibles',
-            value: '4',
+            value: productCount.toString(),
           ),
           const SizedBox(height: 8),
           FilledButton(
@@ -120,6 +128,19 @@ class HomeScreen extends StatelessWidget {
               );
             },
             child: const Text('Historial de ventas'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const InventoryScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.inventory_2),
+            label: const Text('Inventario'),
           ),
         ],
       ),

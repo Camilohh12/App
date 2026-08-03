@@ -15,6 +15,28 @@ class Product {
     this.active = true,
   });
 
+  factory Product.fromJson(Map<String, dynamic> json) {
+    return Product(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      price: (json['price'] as num).toDouble(),
+      category: json['category'] as String,
+      stock: json['stock'] as int,
+      active: json['active'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'category': category,
+      'stock': stock,
+      'active': active,
+    };
+  }
+
   Product copyWith({
     int? id,
     String? name,

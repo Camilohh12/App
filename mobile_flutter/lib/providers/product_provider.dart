@@ -49,6 +49,12 @@ class ProductProvider extends ChangeNotifier {
         .toList();
   }
 
+  List<Product> get outOfStockProducts {
+    return _products
+        .where((product) => product.active && product.stock == 0)
+        .toList();
+  }
+
   Product? findById(int id) {
     try {
       return _products.firstWhere((product) => product.id == id);
@@ -79,6 +85,62 @@ class ProductProvider extends ChangeNotifier {
     _products[index] = _products[index].copyWith(
       stock: _products[index].stock - quantity,
     );
+
+    notifyListeners();
+    return true;
+  }
+
+  /// Aumenta manualmente el stock de un producto (ej. reabastecimiento).
+  bool increaseStock(int productId, int quantity) {
+    if (quantity <= 0) return false;
+
+    final index = _products.indexWhere(
+          (product) => product.id == productId,
+    );
+
+    if (index == -1) return false;
+
+    _products[index] = _products[index].copyWith(
+      stock: _products[index].stock + quantity,
+    );
+
+    notifyListeners();
+    return true;
+  }
+
+  /// Disminuye manualmente el stock de un producto. No permite
+  /// que el stock quede negativo.
+  bool decreaseStock(int productId, int quantity) {
+    if (quantity <= 0) return false;
+
+    final index = _products.indexWhere(
+          (product) => product.id == productId,
+    );
+
+    if (index == -1 || _products[index].stock - quantity < 0) {
+      return false;
+    }
+
+    _products[index] = _products[index].copyWith(
+      stock: _products[index].stock - quantity,
+    );
+
+    notifyListeners();
+    return true;
+  }
+
+  /// Ajusta el stock de un producto a un valor exacto (ej. tras un
+  /// conteo físico de inventario). No permite valores negativos.
+  bool setStock(int productId, int newStock) {
+    if (newStock < 0) return false;
+
+    final index = _products.indexWhere(
+          (product) => product.id == productId,
+    );
+
+    if (index == -1) return false;
+
+    _products[index] = _products[index].copyWith(stock: newStock);
 
     notifyListeners();
     return true;

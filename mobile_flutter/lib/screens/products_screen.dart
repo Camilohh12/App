@@ -14,7 +14,14 @@ class ProductsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Productos'),
       ),
-      body: ListView.separated(
+      body: products.isEmpty
+          ? const Center(
+        child: Text(
+          'No hay productos registrados',
+          style: TextStyle(fontSize: 18),
+        ),
+      )
+          : ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: products.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
