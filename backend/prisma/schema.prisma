@@ -12,6 +12,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum EstadoPedido {
+  PENDIENTE
+  PREPARANDO
+  LISTO
+  ENTREGADO
+  PAGADO
+  CANCELADO
+}
+
+enum EstadoMesa {
+  DISPONIBLE
+  OCUPADA
+  RESERVADA
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   name      String
@@ -37,24 +52,24 @@ model Product {
   details     OrderDetail[]
 }
 
-model Table {
+model Mesa {
   id      Int      @id @default(autoincrement())
   number  Int      @unique
-  status  String
+  status  EstadoMesa  @default(DISPONIBLE)
   orders  Order[]
 }
 
 model Order {
   id        Int           @id @default(autoincrement())
   date      DateTime      @default(now())
-  status    String
+  status    EstadoPedido  @default(PENDIENTE)
   total     Float
 
   userId    Int
-  tableId   Int
+  mesaId   Int
 
   user       User         @relation(fields: [userId], references: [id])
-  table      Table        @relation(fields: [tableId], references: [id])
+  mesa      Mesa        @relation(fields: [mesaId], references: [id])
   details    OrderDetail[]
 }
 

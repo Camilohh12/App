@@ -1,16 +1,13 @@
-import express from "express";
-import cors from "cors";
+import { Router } from "express";
+import { createOrder } from "../controllers/order.controller.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 
-const app = express();
+const router = Router();
 
-app.use(cors());
-app.use(express.json());
+router.post(
+    "/",
+    verifyToken,
+    createOrder
+);
 
-app.get("/health", (_, res) => {
-  res.json({
-    status: "ok",
-    message: "Servidor funcionando"
-  });
-});
-
-export default app;
+export default router;

@@ -1,16 +1,29 @@
-import express from "express";
-import cors from "cors";
+import { Request, Response } from "express";
+import { createOrder as createOrderService } from "../services/order.service.js";
+import { AuthRequest } from "../middlewares/auth.middleware.js";
 
-const app = express();
+export const createOrder = async(
+    req:AuthRequest,
+    res:Response
+)=>{
 
-app.use(cors());
-app.use(express.json());
+    try{
 
-app.get("/health", (_, res) => {
-  res.json({
-    status: "ok",
-    message: "Servidor funcionando"
-  });
-});
+        const order = await createOrderService(
+            req.user!.id,
+            req.body
+        );
 
-export default app;
+        res.status(201).json(order);
+
+    }catch(error){
+
+        res.status(400).json({
+
+            message:(error as Error).message
+
+        });
+
+    }
+
+}
