@@ -1,13 +1,7 @@
 import 'api_client.dart';
 
-/// Consumo de órdenes. Mientras el backend no esté disponible,
-/// OrderProvider sigue manejando las órdenes en memoria; este
-/// servicio queda listo para sustituir ese modo local.
-///
-/// Se reciben/devuelven `Map<String, dynamic>` en lugar de FoodOrder
-/// porque el contrato exacto del backend (nombres de campos, forma
-/// de anidar los items) todavía no está definido; cuando exista,
-/// conviene agregar FoodOrder.fromJson/toJson y tipar estos métodos.
+/// Consumo de órdenes contra el backend real. Devuelve JSON crudo;
+/// OrderProvider se encarga de convertirlo con FoodOrder.fromJson.
 class OrderService {
   const OrderService(this._client);
 

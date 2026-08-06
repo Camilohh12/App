@@ -42,6 +42,26 @@ class ApiClient {
 
   Uri _uri(String path) => Uri.parse('$baseUrl$path');
 
+  /// Verifica si el backend responde, consultando /health (fuera del
+  /// prefijo /api). Se usa para mostrar un estado de conexión real
+  /// en la pantalla de login, no decorativo.
+  Future<bool> checkHealth() async {
+    try {
+      final root =
+      baseUrl.endsWith('/api')
+          ? baseUrl.substring(0, baseUrl.length - '/api'.length)
+          : baseUrl;
+
+      final response = await _httpClient
+          .get(Uri.parse('$root/health'))
+          .timeout(const Duration(seconds: 3));
+
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<dynamic> get(String path) async {
     final response = await _httpClient.get(
       _uri(path),
@@ -61,11 +81,30 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<dynamic> put(String path, {Map<String, dynamic>? body}) async {
+    final response = await _httpClient.put(
+      _uri(path),
+      headers: _headers,
+      body: body != null ? jsonEncode(body) : null,
+    );
+
+    return _decode(response);
+  }
+
   Future<dynamic> patch(String path, {Map<String, dynamic>? body}) async {
     final response = await _httpClient.patch(
       _uri(path),
       headers: _headers,
       body: body != null ? jsonEncode(body) : null,
+    );
+
+    return _decode(response);
+  }
+
+  Future<dynamic> delete(String path) async {
+    final response = await _httpClient.delete(
+      _uri(path),
+      headers: _headers,
     );
 
     return _decode(response);

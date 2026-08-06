@@ -1,41 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../models/order.dart';
+import '../models/category.dart';
 import '../models/product.dart';
+import '../services/api_client.dart';
+import '../services/product_service.dart';
 
 class ProductProvider extends ChangeNotifier {
-  final List<Product> _products = [
-    const Product(
-      id: 1,
-      name: 'Hamburguesa clásica',
-      price: 75,
-      category: 'Hamburguesas',
-      stock: 15,
-    ),
-    const Product(
-      id: 2,
-      name: 'Papas fritas',
-      price: 40,
-      category: 'Complementos',
-      stock: 20,
-    ),
-    const Product(
-      id: 3,
-      name: 'Refresco',
-      price: 25,
-      category: 'Bebidas',
-      stock: 30,
-    ),
-    const Product(
-      id: 4,
-      name: 'Pastel de chocolate',
-      price: 45,
-      category: 'Postres',
-      stock: 8,
-    ),
-  ];
+  ProductProvider(this._productService);
+
+  final ProductService _productService;
+
+  List<Product> _products = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   List<Product> get products => List.unmodifiable(_products);
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   List<Product> get availableProducts {
     return _products
@@ -63,141 +44,147 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
-  bool hasEnoughStock(int productId, int quantity) {
-    final product = findById(productId);
-
-    if (product == null) {
-      return false;
-    }
-
-    return product.stock >= quantity;
-  }
-
-  bool reduceStock(int productId, int quantity) {
-    final index = _products.indexWhere(
-          (product) => product.id == productId,
-    );
-
-    if (index == -1 || _products[index].stock < quantity) {
-      return false;
-    }
-
-    _products[index] = _products[index].copyWith(
-      stock: _products[index].stock - quantity,
-    );
-
+  /// Carga los productos desde la API. Se debe llamar al iniciar
+  /// sesión y cada vez que la pantalla de productos/inventario se
+  /// vuelve a abrir, para reflejar cambios hechos desde otro lugar.
+  Future<void> refresh() async {
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    return true;
+
+    try {
+      _products = await _productService.getProducts();
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+    } catch (_) {
+      _errorMessage = 'No fue posible conectar con el servidor';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Aumenta manualmente el stock de un producto (ej. reabastecimiento).
-  bool increaseStock(int productId, int quantity) {
-    if (quantity <= 0) return false;
-
-    final index = _products.indexWhere(
-          (product) => product.id == productId,
-    );
-
-    if (index == -1) return false;
-
-    _products[index] = _products[index].copyWith(
-      stock: _products[index].stock + quantity,
-    );
-
-    notifyListeners();
-    return true;
+  /// Devuelve null si todo salió bien, o un mensaje de error.
+  Future<String?> increaseStock(int productId, int quantity) {
+    return _adjustStock(productId, delta: quantity);
   }
 
-  /// Disminuye manualmente el stock de un producto. No permite
-  /// que el stock quede negativo.
-  bool decreaseStock(int productId, int quantity) {
-    if (quantity <= 0) return false;
-
-    final index = _products.indexWhere(
-          (product) => product.id == productId,
-    );
-
-    if (index == -1 || _products[index].stock - quantity < 0) {
-      return false;
-    }
-
-    _products[index] = _products[index].copyWith(
-      stock: _products[index].stock - quantity,
-    );
-
-    notifyListeners();
-    return true;
+  /// Disminuye manualmente el stock de un producto. El backend no
+  /// permite que quede negativo.
+  Future<String?> decreaseStock(int productId, int quantity) {
+    return _adjustStock(productId, delta: -quantity);
   }
 
   /// Ajusta el stock de un producto a un valor exacto (ej. tras un
-  /// conteo físico de inventario). No permite valores negativos.
-  bool setStock(int productId, int newStock) {
-    if (newStock < 0) return false;
-
-    final index = _products.indexWhere(
-          (product) => product.id == productId,
-    );
-
-    if (index == -1) return false;
-
-    _products[index] = _products[index].copyWith(stock: newStock);
-
-    notifyListeners();
-    return true;
+  /// conteo físico de inventario).
+  Future<String?> setStock(int productId, int newStock) {
+    return _adjustStock(productId, exactStock: newStock);
   }
 
-  Map<int, int> _aggregateQuantities(List<OrderItem> items) {
-    final Map<int, int> quantities = {};
-
-    for (final item in items) {
-      quantities.update(
-        item.product.id,
-            (value) => value + item.quantity,
-        ifAbsent: () => item.quantity,
+  Future<String?> _adjustStock(
+      int productId, {
+        int? delta,
+        int? exactStock,
+      }) async {
+    try {
+      final updated = await _productService.updateStock(
+        productId,
+        stock: exactStock,
+        delta: delta,
       );
-    }
 
-    return quantities;
-  }
-
-  /// Verifica que todos los productos de la orden tengan stock
-  /// suficiente, agrupando cantidades por producto para evitar
-  /// contar dos veces el mismo producto repetido en varios items.
-  bool canFulfillOrder(List<OrderItem> items) {
-    final quantities = _aggregateQuantities(items);
-
-    for (final entry in quantities.entries) {
-      final product = findById(entry.key);
-
-      if (product == null || !product.active || product.stock < entry.value) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /// Descuenta el stock de todos los productos de una orden de forma
-  /// atómica: si algún producto no tiene stock suficiente, no se
-  /// descuenta nada.
-  bool discountOrderStock(List<OrderItem> items) {
-    if (!canFulfillOrder(items)) {
-      return false;
-    }
-
-    final quantities = _aggregateQuantities(items);
-
-    quantities.forEach((productId, quantity) {
       final index = _products.indexWhere(
             (product) => product.id == productId,
       );
 
-      _products[index] = _products[index].copyWith(
-        stock: _products[index].stock - quantity,
-      );
-    });
+      if (index != -1) {
+        _products[index] = updated;
+        notifyListeners();
+      }
 
-    notifyListeners();
-    return true;
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
+  }
+
+  /// Categorías reales del backend, para el selector al crear un
+  /// producto. No se cachean: se piden cada vez que se abre el
+  /// formulario para reflejar categorías nuevas.
+  Future<List<Category>> loadCategories() {
+    return _productService.getCategories();
+  }
+
+  /// Crea un producto nuevo. Devuelve null si todo salió bien, o un
+  /// mensaje de error para mostrar.
+  Future<String?> createProduct({
+    required String name,
+    required double price,
+    required int stock,
+    required int categoryId,
+  }) async {
+    try {
+      final created = await _productService.createProduct(
+        name: name,
+        price: price,
+        stock: stock,
+        categoryId: categoryId,
+      );
+
+      _products.add(created);
+      notifyListeners();
+
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
+  }
+
+  /// Elimina un producto. Si tiene ventas registradas, el backend
+  /// rechaza el borrado (restricción de integridad) y devuelve un
+  /// mensaje explicando que debe desactivarse en su lugar.
+  Future<String?> deleteProduct(int productId) async {
+    try {
+      await _productService.deleteProduct(productId);
+
+      _products.removeWhere((product) => product.id == productId);
+      notifyListeners();
+
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
+  }
+
+  /// Activa o desactiva un producto (alternativa a eliminar cuando
+  /// ya tiene ventas registradas). Un producto inactivo no aparece
+  /// en el selector de nueva orden, pero se conserva en Inventario
+  /// y en el historial de ventas pasadas.
+  Future<String?> setActive(int productId, bool active) async {
+    try {
+      final updated = await _productService.setActive(productId, active);
+
+      final index = _products.indexWhere(
+            (product) => product.id == productId,
+      );
+
+      if (index != -1) {
+        _products[index] = updated;
+        notifyListeners();
+      }
+
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
   }
 }

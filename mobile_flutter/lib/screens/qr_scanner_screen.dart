@@ -22,6 +22,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _processing = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Refresca las mesas antes de escanear para no ofrecer una mesa
+    // que otra sesión ya haya ocupado mientras tanto.
+    WidgetsBinding.instance.addPostFrameCallback(
+          (_) => context.read<TableProvider>().refresh(),
+    );
+  }
+
+  @override
   void dispose() {
     controller.dispose();
     super.dispose();

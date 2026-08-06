@@ -1,9 +1,6 @@
 import 'api_client.dart';
 
-/// Servicio de autenticación contra el backend. Mientras el backend
-/// no esté disponible, AuthProvider sigue validando usuarios en
-/// memoria; este servicio queda listo para sustituir ese modo local
-/// llamando a login() y guardando el token en ApiClient.authToken.
+/// Servicio de autenticación contra el backend real.
 class AuthService {
   const AuthService(this._client);
 
@@ -20,6 +17,27 @@ class AuthService {
       body: {
         'email': email,
         'password': password,
+      },
+    );
+
+    return response as Map<String, dynamic>;
+  }
+
+  /// POST /api/auth/register
+  /// Requiere estar autenticado como admin (el backend lo exige).
+  Future<Map<String, dynamic>> register({
+    required String name,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    final response = await _client.post(
+      '/auth/register',
+      body: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': role,
       },
     );
 
