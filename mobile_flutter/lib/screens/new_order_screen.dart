@@ -7,6 +7,24 @@ import '../models/table_model.dart';
 import '../providers/order_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/table_provider.dart';
+import '../theme/app_colors.dart';
+
+const _kAllCategories = 'Todos';
+
+IconData _iconForCategory(String category) {
+  final normalized = category.toLowerCase();
+
+  if (normalized.contains('bebida') || normalized.contains('drink')) {
+    return Icons.local_drink;
+  }
+  if (normalized.contains('postre') || normalized.contains('dessert')) {
+    return Icons.icecream;
+  }
+  if (normalized.contains('hamburguesa') || normalized.contains('burger')) {
+    return Icons.lunch_dining;
+  }
+  return Icons.fastfood;
+}
 
 class NewOrderScreen extends StatefulWidget {
   final ServiceType initialServiceType;
@@ -29,8 +47,33 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   late ServiceType serviceType = widget.initialServiceType;
   late int? selectedTableId = widget.initialTableId;
 
+  String selectedCategory = _kAllCategories;
+  bool isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+          (_) => context.read<TableProvider>().refresh(),
+    );
+  }
+
   List<Product> get availableProducts {
     return context.read<ProductProvider>().availableProducts;
+  }
+
+  List<Product> get visibleProducts {
+    if (selectedCategory == _kAllCategories) return availableProducts;
+
+    return availableProducts
+        .where((product) => product.category == selectedCategory)
+        .toList();
+  }
+
+  List<String> get categories {
+    final names = availableProducts.map((p) => p.category).toSet().toList()
+      ..sort();
+    return [_kAllCategories, ...names];
   }
 
   TextEditingController noteControllerFor(int productId) {
@@ -49,6 +92,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   }
 
   bool get canConfirm {
+    if (isSubmitting) return false;
     if (total <= 0) return false;
 
     if (serviceType == ServiceType.dineIn) {
@@ -99,7 +143,50 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     });
   }
 
-  void confirmOrder() {
+  int get itemCount {
+    return quantities.values.fold(0, (sum, quantity) => sum + quantity);
+  }
+
+  Future<void> editNote(Product product) async {
+    final controller = noteControllerFor(product.id);
+    final draftController = TextEditingController(text: controller.text);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Observación · ${product.name}'),
+          content: TextField(
+            controller: draftController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Ej. Sin cebolla',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, draftController.text),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    draftController.dispose();
+
+    if (result != null) {
+      setState(() => controller.text = result.trim());
+    }
+  }
+
+  Future<void> confirmOrder() async {
     final selectedItems = availableProducts
         .where((product) => getQuantity(product.id) > 0)
         .map((product) {
@@ -119,26 +206,42 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
-    final success = context.read<OrderProvider>().addOrder(
+    setState(() => isSubmitting = true);
+
+    final errorMessage = await context.read<OrderProvider>().addOrder(
       selectedItems,
       serviceType: serviceType,
       tableId: selectedTableId,
       tableProvider: context.read<TableProvider>(),
     );
 
-    if (!success) {
+    if (!mounted) return;
+
+    if (errorMessage != null) {
+      setState(() => isSubmitting = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No fue posible confirmar la orden. '
-                'La mesa seleccionada ya no está disponible.',
-          ),
-        ),
+        SnackBar(content: Text(errorMessage)),
       );
       return;
     }
 
-    Navigator.pop(context);
+    // Puede usarse como pantalla apilada (pop al terminar) o como
+    // pestaña persistente del shell de navegación (sin nada que
+    // "pop"; en ese caso solo se limpia el formulario).
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        quantities.clear();
+        for (final controller in noteControllers.values) {
+          controller.clear();
+        }
+        serviceType = ServiceType.takeaway;
+        selectedTableId = null;
+        isSubmitting = false;
+      });
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -149,6 +252,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final products = visibleProducts;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nueva orden'),
@@ -156,28 +261,42 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Total: \$${total.toStringAsFixed(2)}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$itemCount producto${itemCount == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      '\$${total.toStringAsFixed(2)}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: canConfirm ? confirmOrder : null,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
+              const SizedBox(width: 16),
+              Expanded(
+                child: FilledButton(
+                  onPressed: canConfirm ? confirmOrder : null,
+                  child: isSubmitting
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : const Text('Confirmar orden'),
                 ),
-                child: const Text('Confirmar orden'),
               ),
             ],
           ),
@@ -190,11 +309,6 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Tipo de servicio',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
                 SegmentedButton<ServiceType>(
                   segments: const [
                     ButtonSegment(
@@ -224,76 +338,215 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                     },
                   ),
                 ],
-                const Divider(height: 24),
+                const SizedBox(height: 16),
               ],
             ),
           ),
-          Expanded(
+          SizedBox(
+            height: 40,
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: availableProducts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: categories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final product = availableProducts[index];
+                final category = categories[index];
+                final isSelected = category == selectedCategory;
+
+                return ChoiceChip(
+                  label: Text(category),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  onSelected: (_) {
+                    setState(() => selectedCategory = category);
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: products.isEmpty
+                ? const Center(
+              child: Text(
+                'No hay productos en esta categoría',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            )
+                : GridView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.68,
+              ),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
                 final quantity = getQuantity(product.id);
+                final isLowStock = product.stock <= 5;
+                final note = noteControllers[product.id]?.text.trim();
 
                 return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor:
+                              AppColors.primary.withValues(alpha: 0.15),
+                              child: Icon(
+                                _iconForCategory(product.category),
+                                color: AppColors.primary,
+                                size: 18,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (isLowStock)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.tertiary.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'Pocas',
+                                  style: TextStyle(
+                                    color: AppColors.tertiary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '\$${product.price.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (quantity == 0)
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.tonalIcon(
+                              onPressed: () => increaseQuantity(product.id),
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Agregar'),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(36),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          )
+                        else ...[
+                          Row(
+                            mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                            children: [
+                              _StepperButton(
+                                icon: Icons.remove,
+                                onTap: () => decreaseQuantity(product.id),
+                              ),
+                              Text(
+                                quantity.toString(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              _StepperButton(
+                                icon: Icons.add,
+                                onTap: () => increaseQuantity(product.id),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () => editNote(product),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.edit_note,
+                                  size: 16,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    (note == null || note.isEmpty)
+                                        ? 'Agregar nota'
+                                        : note,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text('\$${product.price.toStringAsFixed(2)}'),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: quantity > 0
-                            ? () => decreaseQuantity(product.id)
-                            : null,
-                        icon: const Icon(Icons.remove),
-                      ),
-                      Text(
-                        quantity.toString(),
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      IconButton.filled(
-                        onPressed: () => increaseQuantity(product.id),
-                        icon: const Icon(Icons.add),
-                      ),
-                    ],
-                  ),
-                  if (quantity > 0) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: noteControllerFor(product.id),
-                      decoration: const InputDecoration(
-                        labelText: 'Observación (opcional)',
-                        hintText: 'Ej. Sin cebolla',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          );
+                );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepperButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 16),
       ),
     );
   }
@@ -310,8 +563,17 @@ class _TableSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final availableTables =
-        context.watch<TableProvider>().availableTables;
+    final tableProvider = context.watch<TableProvider>();
+    final availableTables = tableProvider.availableTables;
+
+    if (tableProvider.isLoading && tableProvider.tables.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(12),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
 
     if (availableTables.isEmpty) {
       return const Card(
@@ -322,11 +584,23 @@ class _TableSelector extends StatelessWidget {
       );
     }
 
+    // La mesa elegida puede dejar de estar disponible entre que se
+    // selecciona y que se reconstruye este widget (ej. justo al
+    // confirmar la orden, la mesa pasa a "ocupada" y desaparece de
+    // la lista antes de que se limpie la selección). Un
+    // DropdownButtonFormField no admite un value que no exista en
+    // sus items, así que se valida antes de pasarlo.
+    final isSelectionStillValid =
+    availableTables.any((table) => table.id == selectedTableId);
+
+    if (!isSelectionStillValid && selectedTableId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChanged(null));
+    }
+
     return DropdownButtonFormField<int>(
-      initialValue: selectedTableId,
+      initialValue: isSelectionStillValid ? selectedTableId : null,
       decoration: const InputDecoration(
         labelText: 'Mesa',
-        border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.table_bar),
       ),
       items: availableTables

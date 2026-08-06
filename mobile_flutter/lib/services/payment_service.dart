@@ -1,9 +1,6 @@
 import 'api_client.dart';
 
-/// Consumo de pagos y reportes. Mientras el backend no esté
-/// disponible, OrderProvider.completePayment sigue calculando el
-/// cobro localmente; este servicio queda listo para sustituir ese
-/// modo local por la respuesta real del servidor.
+/// Consumo de pagos y reportes contra el backend real.
 class PaymentService {
   const PaymentService(this._client);
 
@@ -20,6 +17,12 @@ class PaymentService {
   /// GET /api/reports/daily
   Future<Map<String, dynamic>> getDailyReport() async {
     final response = await _client.get('/reports/daily');
+    return response as Map<String, dynamic>;
+  }
+
+  /// GET /api/reports/summary?period=weekly|monthly
+  Future<Map<String, dynamic>> getSummaryReport(String period) async {
+    final response = await _client.get('/reports/summary?period=$period');
     return response as Map<String, dynamic>;
   }
 }

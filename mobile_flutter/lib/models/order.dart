@@ -31,6 +31,14 @@ class OrderItem {
   });
 
   double get subtotal => product.price * quantity;
+
+  factory OrderItem.fromJson(Map<String, dynamic> json) {
+    return OrderItem(
+      product: Product.fromJson(json['product'] as Map<String, dynamic>),
+      quantity: json['quantity'] as int,
+      note: json['note'] as String?,
+    );
+  }
 }
 
 class FoodOrder {
@@ -40,8 +48,8 @@ class FoodOrder {
   final PaymentMethod? paymentMethod;
   final double? amountReceived;
   final double? change;
+  final DateTime? createdAt;
   final DateTime? completedAt;
-  final bool stockDiscounted;
   final ServiceType serviceType;
   final int? tableId;
 
@@ -52,8 +60,8 @@ class FoodOrder {
     this.paymentMethod,
     this.amountReceived,
     this.change,
+    this.createdAt,
     this.completedAt,
-    this.stockDiscounted = false,
     this.serviceType = ServiceType.takeaway,
     this.tableId,
   });
@@ -65,28 +73,36 @@ class FoodOrder {
     );
   }
 
-  FoodOrder copyWith({
-    List<OrderItem>? items,
-    OrderStatus? status,
-    PaymentMethod? paymentMethod,
-    double? amountReceived,
-    double? change,
-    DateTime? completedAt,
-    bool? stockDiscounted,
-    ServiceType? serviceType,
-    int? tableId,
-  }) {
+  factory FoodOrder.fromJson(Map<String, dynamic> json) {
+    final detailsJson = json['details'] as List<dynamic>? ?? [];
+
     return FoodOrder(
-      id: id,
-      items: items ?? this.items,
-      status: status ?? this.status,
-      paymentMethod: paymentMethod ?? this.paymentMethod,
-      amountReceived: amountReceived ?? this.amountReceived,
-      change: change ?? this.change,
-      completedAt: completedAt ?? this.completedAt,
-      stockDiscounted: stockDiscounted ?? this.stockDiscounted,
-      serviceType: serviceType ?? this.serviceType,
-      tableId: tableId ?? this.tableId,
+      id: json['id'] as int,
+      items: detailsJson
+          .map((detail) => OrderItem.fromJson(detail as Map<String, dynamic>))
+          .toList(),
+      status: OrderStatus.values.firstWhere(
+        (status) => status.name == json['status'],
+        orElse: () => OrderStatus.pending,
+      ),
+      paymentMethod: json['paymentMethod'] != null
+          ? PaymentMethod.values.firstWhere(
+              (method) => method.name == json['paymentMethod'],
+              orElse: () => PaymentMethod.cash,
+            )
+          : null,
+      amountReceived: (json['amountReceived'] as num?)?.toDouble(),
+      change: (json['change'] as num?)?.toDouble(),
+      createdAt: json['date'] != null
+          ? DateTime.parse(json['date'] as String)
+          : null,
+      completedAt: json['completedAt'] != null
+          ? DateTime.parse(json['completedAt'] as String)
+          : null,
+      serviceType: json['serviceType'] == 'dineIn'
+          ? ServiceType.dineIn
+          : ServiceType.takeaway,
+      tableId: json['tableId'] as int?,
     );
   }
 }

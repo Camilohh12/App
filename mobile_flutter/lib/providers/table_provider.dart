@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../models/table_model.dart';
+import '../services/api_client.dart';
+import '../services/table_service.dart';
 
 class TableProvider extends ChangeNotifier {
-  final List<TableModel> _tables = List.generate(
-    8,
-        (index) => TableModel(
-      id: index + 1,
-      number: index + 1,
-      qrCode: 'MESA-${index + 1}',
-    ),
-  );
+  TableProvider(this._tableService);
+
+  final TableService _tableService;
+
+  List<TableModel> _tables = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   List<TableModel> get tables => List.unmodifiable(_tables);
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   List<TableModel> get availableTables {
     return _tables
@@ -36,36 +39,24 @@ class TableProvider extends ChangeNotifier {
     }
   }
 
-  bool isAvailable(int id) {
-    final table = findById(id);
-    return table != null && table.status == TableStatus.available;
-  }
+  /// Carga las mesas desde la API. Ocupar/liberar una mesa ya no se
+  /// hace localmente: el backend lo resuelve de forma atómica al
+  /// crear una orden, cobrarla o cancelarla, así que aquí solo se
+  /// vuelve a consultar el estado real.
+  Future<void> refresh() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
 
-  bool occupyTable(int id) {
-    final index = _tables.indexWhere((table) => table.id == id);
-
-    if (index == -1 || _tables[index].status == TableStatus.occupied) {
-      return false;
+    try {
+      _tables = await _tableService.getTables();
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+    } catch (_) {
+      _errorMessage = 'No fue posible conectar con el servidor';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _tables[index] = _tables[index].copyWith(
-      status: TableStatus.occupied,
-    );
-
-    notifyListeners();
-    return true;
-  }
-
-  bool freeTable(int id) {
-    final index = _tables.indexWhere((table) => table.id == id);
-
-    if (index == -1) return false;
-
-    _tables[index] = _tables[index].copyWith(
-      status: TableStatus.available,
-    );
-
-    notifyListeners();
-    return true;
   }
 }

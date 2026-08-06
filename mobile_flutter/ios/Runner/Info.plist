@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>ComandaPOS necesita acceder a la cámara para escanear el código QR de la mesa.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ComandaPOS necesita tu ubicación para registrar dónde se abrió la terminal de venta.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

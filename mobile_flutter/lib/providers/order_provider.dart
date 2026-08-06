@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../models/order.dart';
+import '../services/api_client.dart';
+import '../services/order_service.dart';
+import '../services/payment_service.dart';
 import 'product_provider.dart';
 import 'table_provider.dart';
 
-enum PaymentResult {
-  success,
-  orderNotReady,
-  insufficientAmount,
-  insufficientStock,
-  alreadyProcessed,
-}
-
 class OrderProvider extends ChangeNotifier {
-  final List<FoodOrder> _orders = [];
+  OrderProvider(this._orderService, this._paymentService);
+
+  final OrderService _orderService;
+  final PaymentService _paymentService;
+
+  List<FoodOrder> _orders = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   List<FoodOrder> get orders => List.unmodifiable(_orders);
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   List<FoodOrder> get activeOrders {
     return _orders
@@ -38,142 +42,164 @@ class OrderProvider extends ChangeNotifier {
   }
 
   double get dailySales {
-    return completedOrders.fold(
-      0,
-          (sum, order) => sum + order.total,
-    );
+    final now = DateTime.now();
+
+    return completedOrders
+        .where((order) {
+      final date = order.completedAt;
+      return date != null &&
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    })
+        .fold(0.0, (sum, order) => sum + order.total);
   }
 
   int get pendingOrders => activeOrders.length;
 
-  /// Crea una nueva orden. Para servicio en mesa (`dineIn`) se requiere
-  /// `tableId` y la mesa debe estar disponible; se marca como ocupada
-  /// al confirmar. Para `takeaway` no se requiere mesa.
-  bool addOrder(
+  /// Vuelve a consultar todas las órdenes al backend. Se llama tras
+  /// cada creación/cambio de estado/pago para reflejar el estado
+  /// real, en vez de mutar la lista local.
+  Future<void> refresh() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final rawOrders = await _orderService.getOrders();
+
+      _orders = rawOrders
+          .map((json) => FoodOrder.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+    } catch (_) {
+      _errorMessage = 'No fue posible conectar con el servidor';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Crea una nueva orden. Para servicio en mesa (`dineIn`) se
+  /// requiere `tableId`; el backend valida que la mesa exista y esté
+  /// disponible, y la marca como ocupada de forma atómica. Devuelve
+  /// null si todo salió bien, o un mensaje de error para mostrar.
+  Future<String?> addOrder(
       List<OrderItem> items, {
         required ServiceType serviceType,
         int? tableId,
         required TableProvider tableProvider,
-      }) {
-    if (items.isEmpty) return false;
+      }) async {
+    if (items.isEmpty) return 'La orden debe tener al menos un producto';
 
-    if (serviceType == ServiceType.dineIn) {
-      if (tableId == null) return false;
-      if (!tableProvider.occupyTable(tableId)) return false;
+    if (serviceType == ServiceType.dineIn && tableId == null) {
+      return 'Debes seleccionar una mesa';
     }
 
-    final order = FoodOrder(
-      id: _orders.length + 1,
-      items: items,
-      serviceType: serviceType,
-      tableId: serviceType == ServiceType.dineIn ? tableId : null,
-    );
+    try {
+      await _orderService.createOrder({
+        'serviceType': serviceType.name,
+        if (serviceType == ServiceType.dineIn) 'tableId': tableId,
+        'items': items
+            .map((item) => {
+          'productId': item.product.id,
+          'quantity': item.quantity,
+          if (item.note != null && item.note!.isNotEmpty)
+            'note': item.note,
+        })
+            .toList(),
+      });
 
-    _orders.add(order);
-    notifyListeners();
-    return true;
+      await Future.wait([
+        refresh(),
+        tableProvider.refresh(),
+      ]);
+
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
   }
 
-  void updateStatus(
+  /// Cambia el estado de una orden (`preparing` o `ready`).
+  Future<String?> updateStatus(
       int orderId,
       OrderStatus status,
-      ) {
-    final index = _orders.indexWhere(
-          (order) => order.id == orderId,
-    );
+      ) async {
+    try {
+      await _orderService.updateOrderStatus(
+        orderId: orderId,
+        status: status.name,
+      );
 
-    if (index == -1) return;
-
-    _orders[index] = _orders[index].copyWith(
-      status: status,
-    );
-
-    notifyListeners();
+      await refresh();
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
   }
 
-  /// Cancela una orden en estado pendiente o en preparación. No
-  /// permite cancelar órdenes listas, ya finalizadas o ya canceladas.
-  /// Como no se ha cobrado, no se descuenta stock; si la orden tenía
-  /// una mesa asignada, se libera.
-  bool cancelOrder(
+  /// Cancela una orden en estado pendiente o en preparación. El
+  /// backend exige rol administrador y libera la mesa si tenía una;
+  /// como nunca llega a /api/payments, no se descuenta stock.
+  Future<String?> cancelOrder(
       int orderId, {
         required TableProvider tableProvider,
-      }) {
-    final index = _orders.indexWhere(
-          (order) => order.id == orderId,
-    );
+      }) async {
+    try {
+      await _orderService.updateOrderStatus(
+        orderId: orderId,
+        status: 'cancelled',
+      );
 
-    if (index == -1) return false;
+      await Future.wait([
+        refresh(),
+        tableProvider.refresh(),
+      ]);
 
-    final order = _orders[index];
-
-    if (order.status != OrderStatus.pending &&
-        order.status != OrderStatus.preparing) {
-      return false;
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
     }
-
-    _orders[index] = order.copyWith(status: OrderStatus.cancelled);
-
-    if (order.serviceType == ServiceType.dineIn && order.tableId != null) {
-      tableProvider.freeTable(order.tableId!);
-    }
-
-    notifyListeners();
-    return true;
   }
 
-  PaymentResult completePayment({
+  /// Registra el cobro de una orden lista. El backend valida stock y
+  /// monto, descuenta el inventario y libera la mesa de forma
+  /// atómica. Devuelve null si todo salió bien, o el mensaje de
+  /// error del servidor (monto insuficiente, stock insuficiente,
+  /// orden no lista, etc.) para mostrar tal cual al usuario.
+  Future<String?> completePayment({
     required int orderId,
     required PaymentMethod paymentMethod,
     required double amountReceived,
     required ProductProvider productProvider,
     required TableProvider tableProvider,
-  }) {
-    final index = _orders.indexWhere(
-          (order) => order.id == orderId,
-    );
+  }) async {
+    try {
+      await _paymentService.createPayment({
+        'orderId': orderId,
+        'paymentMethod': paymentMethod.name,
+        'amountReceived': amountReceived,
+      });
 
-    if (index == -1) return PaymentResult.orderNotReady;
+      await Future.wait([
+        refresh(),
+        productProvider.refresh(),
+        tableProvider.refresh(),
+      ]);
 
-    final order = _orders[index];
-
-    if (order.stockDiscounted) {
-      return PaymentResult.alreadyProcessed;
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
     }
-
-    if (order.status != OrderStatus.ready) {
-      return PaymentResult.orderNotReady;
-    }
-
-    if (paymentMethod == PaymentMethod.cash &&
-        amountReceived < order.total) {
-      return PaymentResult.insufficientAmount;
-    }
-
-    // Validación final de stock justo antes de confirmar el cobro.
-    if (!productProvider.discountOrderStock(order.items)) {
-      return PaymentResult.insufficientStock;
-    }
-
-    final calculatedChange =
-    paymentMethod == PaymentMethod.cash
-        ? amountReceived - order.total
-        : 0.0;
-
-    _orders[index] = order.copyWith(
-      status: OrderStatus.completed,
-      paymentMethod: paymentMethod,
-      amountReceived: amountReceived,
-      change: calculatedChange,
-      completedAt: DateTime.now(),
-      stockDiscounted: true,
-    );
-
-    if (order.serviceType == ServiceType.dineIn && order.tableId != null) {
-      tableProvider.freeTable(order.tableId!);
-    }
-
-    notifyListeners();
-    return PaymentResult.success;
   }
 }

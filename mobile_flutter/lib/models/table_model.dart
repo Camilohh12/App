@@ -16,17 +16,16 @@ class TableModel {
     required this.qrCode,
   });
 
-  TableModel copyWith({
-    int? id,
-    int? number,
-    TableStatus? status,
-    String? qrCode,
-  }) {
+  factory TableModel.fromJson(Map<String, dynamic> json) {
     return TableModel(
-      id: id ?? this.id,
-      number: number ?? this.number,
-      status: status ?? this.status,
-      qrCode: qrCode ?? this.qrCode,
+      id: json['id'] as int,
+      number: json['number'] as int,
+      status: TableStatus.values.firstWhere(
+        (status) => status.name == json['status'],
+        orElse: () => TableStatus.available,
+      ),
+      qrCode: json['qrCode'] as String,
     );
   }
+
 }
