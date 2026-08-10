@@ -1,0 +1,17 @@
+# Flutter
+mobile_flutter/.dart_tool/
+mobile_flutter/build/
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/.env
+
+# Prisma generado (si aplica)
+backend/generated/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log

@@ -2,16 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/order.dart';
+import '../models/product.dart';
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
 import '../theme/app_colors.dart';
+import '../widgets/comanda_card.dart';
 import '../widgets/stat_card.dart';
 
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
 
-const _kDelayedThreshold = Duration(minutes: 15);
+List<OrderItem> kitchenItemsOf(FoodOrder order) {
+  return order.items
+      .where((item) => item.product.preparationArea == PreparationArea.kitchen)
+      .toList();
+}
 
 class KitchenScreen extends StatefulWidget {
   const KitchenScreen({super.key});
@@ -37,52 +43,6 @@ class _KitchenScreenState extends State<KitchenScreen> {
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
-  }
-
-  String serviceText(FoodOrder order) {
-    if (order.serviceType == ServiceType.takeaway) {
-      return 'PARA LLEVAR';
-    }
-
-    return order.tableId != null ? 'MESA ${order.tableId}' : 'EN MESA';
-  }
-
-  Color serviceColor(FoodOrder order) {
-    return order.serviceType == ServiceType.dineIn
-        ? AppColors.dineIn
-        : AppColors.takeaway;
-  }
-
-  Duration elapsedSince(FoodOrder order) {
-    final start = order.createdAt;
-    if (start == null) return Duration.zero;
-    return DateTime.now().difference(start);
-  }
-
-  bool isDelayed(FoodOrder order) {
-    return order.status != OrderStatus.ready &&
-        elapsedSince(order) > _kDelayedThreshold;
-  }
-
-  String formatElapsed(Duration elapsed) {
-    final minutes = elapsed.inMinutes.remainder(100).toString().padLeft(2, '0');
-    final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
-
-  String statusText(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return 'Pendiente';
-      case OrderStatus.preparing:
-        return 'En preparación';
-      case OrderStatus.ready:
-        return 'Listo';
-      case OrderStatus.completed:
-        return 'Finalizada';
-      case OrderStatus.cancelled:
-        return 'Cancelada';
-    }
   }
 
   Future<void> confirmCancel(BuildContext context, FoodOrder order) async {
@@ -127,13 +87,15 @@ class _KitchenScreenState extends State<KitchenScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OrderProvider>();
-    final orders = provider.activeOrders;
     final isAdmin =
         context.watch<AuthProvider>().currentUser?.role == UserRole.admin;
 
-    final notReady = orders
-        .where((o) => o.status != OrderStatus.ready)
+    // Solo comandas que tienen al menos un producto de cocina.
+    final orders = provider.activeOrders
+        .where((order) => kitchenItemsOf(order).isNotEmpty)
         .toList();
+
+    final notReady = orders.where((o) => o.status != OrderStatus.ready).toList();
     final ready = orders.where((o) => o.status == OrderStatus.ready).length;
     final delayed = notReady.where(isDelayed).length;
 
@@ -145,7 +107,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pedidos de cocina'),
+        title: const Text('Comandas de cocina'),
         actions: [
           IconButton(
             tooltip: 'Cerrar sesión',
@@ -239,273 +201,23 @@ class _KitchenScreenState extends State<KitchenScreen> {
             padding: EdgeInsets.only(top: 60),
             child: Center(
               child: Text(
-                'No hay pedidos pendientes',
+                'No hay comandas de cocina pendientes',
                 style: TextStyle(fontSize: 18),
               ),
             ),
           )
         else
-          ...orders.map((order) {
-            final delayed = isDelayed(order);
-            final accent = serviceColor(order);
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: delayed ? AppColors.danger : AppColors.border,
-                  width: delayed ? 1.5 : 1,
-                ),
-              ),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      width: 5,
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: const BorderRadius.horizontal(
-                          left: Radius.circular(16),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Orden #${order.id}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (delayed)
-                                  Container(
-                                    margin: const EdgeInsets.only(right: 8),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.danger,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      'DEMORADA',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                Icon(
-                                  Icons.timer_outlined,
-                                  size: 14,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  formatElapsed(elapsedSince(order)),
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: accent.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    serviceText(order),
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  statusText(order.status),
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 20),
-                            ...order.items.map(
-                              (item) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${item.quantity} x ${item.product.name}',
-                                    ),
-                                    if (item.note != null &&
-                                        item.note!.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: 12,
-                                        ),
-                                        child: Text(
-                                          'Obs: ${item.note}',
-                                          style: const TextStyle(
-                                            fontStyle: FontStyle.italic,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Total: \$${order.total.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _OrderActionButton(order: order),
-                            if (isAdmin &&
-                                (order.status == OrderStatus.pending ||
-                                    order.status == OrderStatus.preparing)) ...[
-                              const SizedBox(height: 8),
-                              OutlinedButton.icon(
-                                onPressed: () => confirmCancel(context, order),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.danger,
-                                ),
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: const Text('Cancelar orden'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
+          ...orders.map(
+            (order) => ComandaCard(
+              order: order,
+              displayItems: kitchenItemsOf(order),
+              hasOtherStationItems:
+                  kitchenItemsOf(order).length != order.items.length,
+              allowCancel: isAdmin,
+              onCancel: confirmCancel,
+            ),
+          ),
       ],
     );
-  }
-}
-
-class _OrderActionButton extends StatefulWidget {
-  final FoodOrder order;
-
-  const _OrderActionButton({required this.order});
-
-  @override
-  State<_OrderActionButton> createState() => _OrderActionButtonState();
-}
-
-class _OrderActionButtonState extends State<_OrderActionButton> {
-  bool isProcessing = false;
-
-  Future<void> updateStatus(OrderStatus status) async {
-    setState(() => isProcessing = true);
-
-    final errorMessage = await context.read<OrderProvider>().updateStatus(
-      widget.order.id,
-      status,
-    );
-
-    if (!mounted) return;
-
-    setState(() => isProcessing = false);
-
-    if (errorMessage != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(errorMessage)));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    switch (widget.order.status) {
-      case OrderStatus.pending:
-        return FilledButton(
-          onPressed: isProcessing
-              ? null
-              : () => updateStatus(OrderStatus.preparing),
-          child: isProcessing
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Preparar'),
-        );
-
-      case OrderStatus.preparing:
-        return FilledButton(
-          onPressed: isProcessing
-              ? null
-              : () => updateStatus(OrderStatus.ready),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.secondary),
-          child: isProcessing
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Marcar listo'),
-        );
-
-      case OrderStatus.ready:
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.secondary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.check_circle_outline, color: AppColors.secondary),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Orden lista. Esperando cobro del cajero.',
-                  style: TextStyle(color: AppColors.secondary),
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case OrderStatus.completed:
-      case OrderStatus.cancelled:
-        return const SizedBox.shrink();
-    }
   }
 }

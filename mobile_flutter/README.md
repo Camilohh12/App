@@ -1,17 +1,26 @@
-# mobile_flutter
+# ComandaPOS Bar — Cliente Flutter
 
-A new Flutter project.
+Cliente móvil de ComandaPOS. Documentación completa del proyecto
+(problema, roles, arquitectura, modelo de datos, endpoints, guion de
+demo) en [`../README.md`](../README.md) y [`../docs/`](../docs/).
 
-## Getting Started
+## Correr en desarrollo
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+Antes de correr contra un backend en otra máquina/celular, actualiza
+la IP en `lib/main.dart` (comentario junto a `ApiClient`).
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Comandos útiles
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter analyze   # análisis estático
+flutter test      # pruebas unitarias y de widget (ver docs/pruebas.md)
+```
+
+## Estructura
+
+Ver [`../docs/arquitectura.md`](../docs/arquitectura.md).

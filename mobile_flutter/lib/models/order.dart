@@ -39,6 +39,17 @@ class OrderItem {
       note: json['note'] as String?,
     );
   }
+
+  /// Forma que espera el backend al crear una orden o agregar una
+  /// ronda (`POST /api/orders`, `POST /api/orders/:id/items`): manda
+  /// `productId`, no el producto completo.
+  Map<String, dynamic> toJson() {
+    return {
+      'productId': product.id,
+      'quantity': quantity,
+      if (note != null && note!.isNotEmpty) 'note': note,
+    };
+  }
 }
 
 class FoodOrder {

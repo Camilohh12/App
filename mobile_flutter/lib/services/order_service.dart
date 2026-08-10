@@ -33,4 +33,21 @@ class OrderService {
 
     return response as Map<String, dynamic>;
   }
+
+  /// POST /api/orders/:id/items — agrega productos a una orden ya
+  /// existente (segunda ronda de una cuenta abierta). Contrato nuevo
+  /// documentado en docs/endpoints.md; el backend todavía no lo
+  /// implementa, así que esta llamada puede devolver 404 hasta que se
+  /// agregue del lado del servidor.
+  Future<Map<String, dynamic>> addItemsToOrder(
+    int orderId,
+    List<Map<String, dynamic>> items,
+  ) async {
+    final response = await _client.post(
+      '/orders/$orderId/items',
+      body: {'items': items},
+    );
+
+    return response as Map<String, dynamic>;
+  }
 }

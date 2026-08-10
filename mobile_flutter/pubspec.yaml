@@ -1,5 +1,5 @@
 name: mobile_flutter
-description: "A new Flutter project."
+description: "Cliente móvil de ComandaPOS Bar: mesas, comandas, cobro, inventario y reportes para bares."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -36,9 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   provider: ^6.1.5
   mobile_scanner: ^7.4.0
-  http: ^1.6.0
   fl_chart: ^1.2.0
   geolocator: ^14.0.3
+  dio: ^5.11.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

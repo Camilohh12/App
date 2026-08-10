@@ -101,14 +101,7 @@ class OrderProvider extends ChangeNotifier {
       await _orderService.createOrder({
         'serviceType': serviceType.name,
         if (serviceType == ServiceType.dineIn) 'tableId': tableId,
-        'items': items
-            .map((item) => {
-          'productId': item.product.id,
-          'quantity': item.quantity,
-          if (item.note != null && item.note!.isNotEmpty)
-            'note': item.note,
-        })
-            .toList(),
+        'items': items.map((item) => item.toJson()).toList(),
       });
 
       await Future.wait([
@@ -118,6 +111,38 @@ class OrderProvider extends ChangeNotifier {
 
       return null;
     } on ApiException catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'No fue posible conectar con el servidor';
+    }
+  }
+
+  /// Agrega productos a una orden ya existente (segunda ronda de una
+  /// cuenta abierta en mesa). Depende de un endpoint nuevo
+  /// (`POST /api/orders/:id/items`, ver docs/endpoints.md) que el
+  /// backend todavía no implementa: si responde 404, se traduce en un
+  /// mensaje explicando que falta esa actualización del servidor, en
+  /// vez de un error genérico.
+  Future<String?> addItemsToOrder(
+    int orderId,
+    List<OrderItem> items,
+  ) async {
+    if (items.isEmpty) return 'Agrega al menos un producto';
+
+    try {
+      await _orderService.addItemsToOrder(
+        orderId,
+        items.map((item) => item.toJson()).toList(),
+      );
+
+      await refresh();
+      return null;
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) {
+        return 'Esta función todavía no está disponible: el servidor '
+            'necesita agregar el endpoint para sumar productos a una '
+            'cuenta abierta.';
+      }
       return error.message;
     } catch (_) {
       return 'No fue posible conectar con el servidor';

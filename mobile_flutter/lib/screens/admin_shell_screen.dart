@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/order_provider.dart';
 import '../providers/product_provider.dart';
+import '../providers/table_provider.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'inventory_screen.dart';
@@ -39,13 +40,14 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   @override
   void initState() {
     super.initState();
-    // Refresca órdenes y productos en segundo plano para que Inicio,
-    // Cocina, Inventario e Historial reflejen pedidos nuevos, cambios
-    // de estado y ajustes de stock sin pull-to-refresh manual.
+    // Refresca órdenes, productos y mesas en segundo plano para que
+    // Inicio, Cocina, Inventario, Historial y Reportes (cuentas
+    // abiertas) reflejen cambios sin pull-to-refresh manual.
     _pollTimer = Timer.periodic(_kPollInterval, (_) {
       if (!mounted) return;
       context.read<OrderProvider>().refresh();
       context.read<ProductProvider>().refresh();
+      context.read<TableProvider>().refresh();
     });
   }
 

@@ -6,6 +6,7 @@ import '../models/order.dart';
 import '../models/table_model.dart';
 import '../providers/table_provider.dart';
 import 'new_order_screen.dart';
+import 'open_account_screen.dart';
 
 /// Escanea el código QR de una mesa y abre una nueva orden con esa
 /// mesa preseleccionada. Requiere permiso de cámara (ver
@@ -58,7 +59,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     }
 
     if (table.status == TableStatus.occupied) {
-      _showTemporaryError('La mesa ${table.number} ya está ocupada');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OpenAccountScreen(tableId: table.id),
+        ),
+      );
       return;
     }
 
