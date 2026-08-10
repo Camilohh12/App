@@ -20,7 +20,7 @@ import 'theme/app_theme.dart';
 // Si tu PC cambia de IP (reconexión WiFi, otra red), actualiza este
 // valor con el que te devuelve "ipconfig" (adaptador Wi-Fi, IPv4).
 final ApiClient _apiClient = ApiClient(
-  baseUrl: 'http://10.0.97.181:3000/api',
+  baseUrl: 'http://192.168.190.56:3000/api',
 );
 
 void main() {
@@ -53,7 +53,7 @@ class ComandaPosApp extends StatelessWidget {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'ComandaPOS',
+        title: 'ComandaPOS Bar',
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.dark,

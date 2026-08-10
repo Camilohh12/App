@@ -4,10 +4,69 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/order.dart';
+import '../providers/order_provider.dart';
+import '../providers/product_provider.dart';
+import '../providers/table_provider.dart';
 import '../services/api_client.dart';
-import '../services/payment_service.dart';
+import '../services/report_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/stat_card.dart';
+
+/// Ventas completadas agrupadas por método de pago, en la misma
+/// ventana de fechas que usa el reporte del backend para `period`
+/// (últimos 7 o 30 días completos según `getSummaryReport` en
+/// report.controller.ts). El backend no expone este desglose
+/// todavía, así que se calcula aquí con las órdenes que ya tiene el
+/// cliente cargadas.
+Map<PaymentMethod, double> _paymentBreakdown(
+  List<FoodOrder> completedOrders,
+  String period,
+) {
+  final days = period == 'monthly' ? 30 : 7;
+  final now = DateTime.now();
+  final end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+  final start = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: days - 1));
+
+  final result = <PaymentMethod, double>{};
+
+  for (final order in completedOrders) {
+    final completedAt = order.completedAt;
+    final method = order.paymentMethod;
+    if (completedAt == null || method == null) continue;
+    if (completedAt.isBefore(start) || completedAt.isAfter(end)) continue;
+
+    result[method] = (result[method] ?? 0) + order.total;
+  }
+
+  return result;
+}
+
+String paymentMethodLabel(PaymentMethod method) {
+  switch (method) {
+    case PaymentMethod.cash:
+      return 'Efectivo';
+    case PaymentMethod.card:
+      return 'Tarjeta';
+    case PaymentMethod.transfer:
+      return 'Transferencia';
+  }
+}
+
+Color paymentMethodColor(PaymentMethod method) {
+  switch (method) {
+    case PaymentMethod.cash:
+      return AppColors.secondary;
+    case PaymentMethod.card:
+      return AppColors.primary;
+    case PaymentMethod.transfer:
+      return AppColors.delivery;
+  }
+}
 
 const _kPollInterval = Duration(seconds: 20);
 
@@ -28,7 +87,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+      // Órdenes activas, cuentas abiertas y stock bajo se leen de
+      // estos providers directamente (no vienen en getSummaryReport).
+      context.read<OrderProvider>().refresh();
+      context.read<TableProvider>().refresh();
+      context.read<ProductProvider>().refresh();
+    });
     // Los reportes se agregan con menos frecuencia que las órdenes,
     // así que se refrescan solos con un intervalo más espaciado.
     _pollTimer = Timer.periodic(_kPollInterval, (_) {
@@ -50,7 +116,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     });
 
     try {
-      final service = PaymentService(context.read<ApiClient>());
+      final service = ReportService(context.read<ApiClient>());
       final data = await service.getSummaryReport(period);
 
       if (!mounted) return;
@@ -111,13 +177,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
         title: const Text('Reportes'),
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => Future.wait([
+          _load(),
+          context.read<OrderProvider>().refresh(),
+          context.read<TableProvider>().refresh(),
+          context.read<ProductProvider>().refresh(),
+        ]),
         child: _buildBody(),
       ),
     );
   }
 
   Widget _buildBody() {
+    final orderProvider = context.watch<OrderProvider>();
+    final tableProvider = context.watch<TableProvider>();
+    final productProvider = context.watch<ProductProvider>();
+    final lowStockProducts = productProvider.lowStockProducts;
     if (isLoading && report == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -157,6 +232,66 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Text(
+          'Estado actual',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        HeroStatCard(
+          label: 'Ventas de hoy',
+          value: '\$${orderProvider.dailySales.toStringAsFixed(2)}',
+          color: AppColors.secondary,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: StatCard(
+                label: 'Órdenes activas',
+                value: orderProvider.pendingOrders.toString(),
+                icon: Icons.receipt_long,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatCard(
+                label: 'Cuentas abiertas',
+                value: tableProvider.occupiedTables.length.toString(),
+                icon: Icons.table_bar,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        StatCard(
+          label: 'Productos con stock bajo',
+          value: lowStockProducts.length.toString(),
+          icon: Icons.warning_amber_rounded,
+        ),
+        if (lowStockProducts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: lowStockProducts
+                .map(
+                  (product) => Chip(
+                    label: Text(
+                      '${product.name} (${product.stock})',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: AppColors.tertiary.withValues(
+                      alpha: 0.15,
+                    ),
+                    side: BorderSide.none,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+        const SizedBox(height: 24),
         SegmentedButton<String>(
           segments: const [
             ButtonSegment(value: 'weekly', label: Text('Semanal')),
@@ -210,6 +345,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
         const SizedBox(height: 12),
         _CategoryBreakdown(categories: categories),
+        const SizedBox(height: 24),
+        Text(
+          'Ventas por método de pago',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _PaymentMethodBreakdown(
+          breakdown: _paymentBreakdown(orderProvider.completedOrders, period),
+        ),
         const SizedBox(height: 24),
         Text(
           'Productos más vendidos',
@@ -389,6 +535,85 @@ class _RevenueBarChart extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PaymentMethodBreakdown extends StatelessWidget {
+  final Map<PaymentMethod, double> breakdown;
+
+  const _PaymentMethodBreakdown({required this.breakdown});
+
+  @override
+  Widget build(BuildContext context) {
+    if (breakdown.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Text(
+          'No hay ventas en este período',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    final total = breakdown.values.fold<double>(0, (sum, v) => sum + v);
+    final entries = breakdown.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: entries.map((entry) {
+          final fraction = total > 0 ? entry.value / total : 0.0;
+          final color = paymentMethodColor(entry.key);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      paymentMethodLabel(entry.key),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '\$${entry.value.toStringAsFixed(2)} '
+                      '(${(fraction * 100).toStringAsFixed(0)}%)',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: fraction,
+                    minHeight: 8,
+                    backgroundColor: AppColors.surfaceHigh,
+                    valueColor: AlwaysStoppedAnimation(color),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }

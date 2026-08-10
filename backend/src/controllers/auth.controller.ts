@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import * as authService from "../services/auth.service.js";
 import { HttpError } from "../utils/http-error.js";
 
-const VALID_ROLES = ["admin", "cashier", "kitchen"];
+const VALID_ROLES = ["admin", "cashier", "kitchen", "waiter", "bar"];
 
 export const register = async (req: Request, res: Response) => {
   try {

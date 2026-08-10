@@ -7,6 +7,20 @@ import '../providers/product_provider.dart';
 import '../providers/table_provider.dart';
 import '../theme/app_colors.dart';
 
+/// "Mesa N" o "Para llevar" para mostrar en Cobro. El backend expone
+/// `tableId` (no el número de mesa) en la orden; se usa tal cual, ya
+/// que hoy en la práctica coincide con el número (misma convención
+/// que ya usan Cocina/Barra).
+String tableLabelFor(FoodOrder order) {
+  if (order.serviceType == ServiceType.takeaway) return 'Para llevar';
+  return order.tableId != null ? 'Mesa ${order.tableId}' : 'En mesa';
+}
+
+String? waiterLabelFor(FoodOrder order, TableProvider tableProvider) {
+  if (order.tableId == null) return null;
+  return tableProvider.findById(order.tableId!)?.waiterName;
+}
+
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
 
@@ -26,6 +40,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final orderProvider = context.watch<OrderProvider>();
+    final tableProvider = context.watch<TableProvider>();
     final readyOrders = orderProvider.readyOrders;
 
     return Scaffold(
@@ -34,12 +49,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () => context.read<OrderProvider>().refresh(),
-        child: _buildBody(orderProvider, readyOrders),
+        child: _buildBody(orderProvider, tableProvider, readyOrders),
       ),
     );
   }
 
-  Widget _buildBody(OrderProvider orderProvider, List<FoodOrder> readyOrders) {
+  Widget _buildBody(
+    OrderProvider orderProvider,
+    TableProvider tableProvider,
+    List<FoodOrder> readyOrders,
+  ) {
     if (orderProvider.isLoading && readyOrders.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -68,6 +87,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final order = readyOrders[index];
+        final waiterName = waiterLabelFor(order, tableProvider);
 
         return Card(
           child: Padding(
@@ -75,12 +95,44 @@ class _PaymentScreenState extends State<PaymentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Orden #${order.id}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Orden #${order.id}',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        tableLabelFor(order),
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (waiterName != null)
+                  Text(
+                    'Mesero: $waiterName',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 ...order.items.map(
                       (item) => Text(
@@ -267,6 +319,9 @@ class _PaymentDetailScreenState
         (selectedMethod != PaymentMethod.cash ||
             amountReceived >= widget.order.total);
 
+    final tableProvider = context.watch<TableProvider>();
+    final waiterName = waiterLabelFor(widget.order, tableProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Cobrar orden #${widget.order.id}'),
@@ -280,10 +335,43 @@ class _PaymentDetailScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Total de la orden',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total de la orden',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          tableLabelFor(widget.order),
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (waiterName != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Mesero: $waiterName',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Text(
                     '\$${widget.order.total.toStringAsFixed(2)}',
@@ -296,7 +384,15 @@ class _PaymentDetailScreenState
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.call_split, size: 16),
+              label: const Text('Dividir cuenta (próximamente)'),
+            ),
+          ),
+          const SizedBox(height: 8),
           SegmentedButton<PaymentMethod>(
             segments: [
               ButtonSegment(

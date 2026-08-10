@@ -2,6 +2,8 @@ enum UserRole {
   admin,
   cashier,
   kitchen,
+  waiter,
+  bar,
 }
 
 class AppUser {
@@ -27,5 +29,17 @@ class AppUser {
         orElse: () => UserRole.cashier,
       ),
     );
+  }
+
+  /// No incluye contraseña: nunca se guarda ni se vuelve a enviar
+  /// tras el login. El registro de usuario usa su propio payload en
+  /// `auth_service.dart` (con password).
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'role': role.name,
+    };
   }
 }

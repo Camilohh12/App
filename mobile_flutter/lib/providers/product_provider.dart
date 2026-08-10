@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
+import '../data/demo_catalog.dart';
 import '../models/category.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
@@ -48,6 +50,13 @@ class ProductProvider extends ChangeNotifier {
   /// sesión y cada vez que la pantalla de productos/inventario se
   /// vuelve a abrir, para reflejar cambios hechos desde otro lugar.
   Future<void> refresh() async {
+    if (AppConfig.useLocalMode) {
+      _products = demoBarCatalog;
+      _errorMessage = null;
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

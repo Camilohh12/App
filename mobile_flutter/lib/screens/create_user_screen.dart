@@ -36,6 +36,10 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         return 'Cajero';
       case UserRole.kitchen:
         return 'Cocina';
+      case UserRole.waiter:
+        return 'Mesero';
+      case UserRole.bar:
+        return 'Barra';
     }
   }
 

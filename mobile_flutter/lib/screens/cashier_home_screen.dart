@@ -52,7 +52,7 @@ class _CashierHomeScreenState extends State<CashierHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('ComandaPOS', overflow: TextOverflow.ellipsis),
+            const Text('ComandaPOS Bar', overflow: TextOverflow.ellipsis),
             Text(
               'Cajero: ${user?.name ?? ''}',
               style: const TextStyle(fontSize: 12),

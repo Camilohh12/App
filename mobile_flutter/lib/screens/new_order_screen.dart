@@ -30,10 +30,18 @@ class NewOrderScreen extends StatefulWidget {
   final ServiceType initialServiceType;
   final int? initialTableId;
 
+  /// Cuando se define, la pantalla opera en "modo ronda": en vez de
+  /// crear una orden nueva, agrega los productos elegidos a la orden
+  /// [addToOrderId] ya existente (cuenta abierta de una mesa
+  /// ocupada). Oculta el selector de tipo de servicio/mesa, que ya no
+  /// aplica porque la mesa quedó fija desde que se abrió la cuenta.
+  final int? addToOrderId;
+
   const NewOrderScreen({
     super.key,
     this.initialServiceType = ServiceType.takeaway,
     this.initialTableId,
+    this.addToOrderId,
   });
 
   @override
@@ -208,12 +216,17 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
     setState(() => isSubmitting = true);
 
-    final errorMessage = await context.read<OrderProvider>().addOrder(
-      selectedItems,
-      serviceType: serviceType,
-      tableId: selectedTableId,
-      tableProvider: context.read<TableProvider>(),
-    );
+    final orderProvider = context.read<OrderProvider>();
+    final addToOrderId = widget.addToOrderId;
+
+    final errorMessage = addToOrderId != null
+        ? await orderProvider.addItemsToOrder(addToOrderId, selectedItems)
+        : await orderProvider.addOrder(
+            selectedItems,
+            serviceType: serviceType,
+            tableId: selectedTableId,
+            tableProvider: context.read<TableProvider>(),
+          );
 
     if (!mounted) return;
 
@@ -244,19 +257,54 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Orden enviada a cocina'),
+      SnackBar(
+        content: Text(
+          addToOrderId != null
+              ? 'Productos agregados a la cuenta'
+              : 'Orden enviada a cocina',
+        ),
       ),
     );
+  }
+
+  String? get _tableSubtitle {
+    if (serviceType != ServiceType.dineIn || selectedTableId == null) {
+      return null;
+    }
+
+    final table = context.read<TableProvider>().findById(selectedTableId!);
+    if (table == null) return null;
+
+    final waiterName = table.waiterName;
+    return waiterName == null
+        ? 'Mesa ${table.number}'
+        : 'Mesa ${table.number} · Mesero: $waiterName';
   }
 
   @override
   Widget build(BuildContext context) {
     final products = visibleProducts;
+    final tableSubtitle = _tableSubtitle;
+    final isAddingRound = widget.addToOrderId != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nueva orden'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isAddingRound ? 'Agregar ronda' : 'Nueva orden',
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (tableSubtitle != null)
+              Text(
+                tableSubtitle,
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -295,7 +343,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                      : const Text('Confirmar orden'),
+                      : Text(
+                          isAddingRound
+                              ? 'Agregar a la cuenta'
+                              : 'Confirmar orden',
+                        ),
                 ),
               ),
             ],
@@ -304,44 +356,47 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SegmentedButton<ServiceType>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ServiceType.dineIn,
-                      label: Text('En mesa'),
-                      icon: Icon(Icons.table_bar),
-                    ),
-                    ButtonSegment(
-                      value: ServiceType.takeaway,
-                      label: Text('Para llevar'),
-                      icon: Icon(Icons.takeout_dining),
-                    ),
-                  ],
-                  selected: {serviceType},
-                  onSelectionChanged: (selection) {
-                    selectServiceType(selection.first);
-                  },
-                ),
-                if (serviceType == ServiceType.dineIn) ...[
-                  const SizedBox(height: 12),
-                  _TableSelector(
-                    selectedTableId: selectedTableId,
-                    onChanged: (tableId) {
-                      setState(() {
-                        selectedTableId = tableId;
-                      });
+          if (!isAddingRound)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SegmentedButton<ServiceType>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ServiceType.dineIn,
+                        label: Text('En mesa'),
+                        icon: Icon(Icons.table_bar),
+                      ),
+                      ButtonSegment(
+                        value: ServiceType.takeaway,
+                        label: Text('Para llevar'),
+                        icon: Icon(Icons.takeout_dining),
+                      ),
+                    ],
+                    selected: {serviceType},
+                    onSelectionChanged: (selection) {
+                      selectServiceType(selection.first);
                     },
                   ),
+                  if (serviceType == ServiceType.dineIn) ...[
+                    const SizedBox(height: 12),
+                    _TableSelector(
+                      selectedTableId: selectedTableId,
+                      onChanged: (tableId) {
+                        setState(() {
+                          selectedTableId = tableId;
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                 ],
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
+              ),
+            )
+          else
+            const SizedBox(height: 12),
           SizedBox(
             height: 40,
             child: ListView.separated(
@@ -380,8 +435,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                 : GridView.builder(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 190,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.68,

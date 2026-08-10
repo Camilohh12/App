@@ -6,6 +6,7 @@ import '../providers/order_provider.dart';
 import '../providers/product_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/stat_card.dart';
+import 'bar_screen.dart';
 import 'create_user_screen.dart';
 import 'history_screen.dart';
 import 'inventory_screen.dart';
@@ -76,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ComandaPOS', overflow: TextOverflow.ellipsis),
+            Text('ComandaPOS Bar', overflow: TextOverflow.ellipsis),
             Text(
               'Panel de administrador',
               style: TextStyle(fontSize: 12),
@@ -182,6 +183,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const KitchenScreen()),
+                  ),
+                ),
+                _QuickAction(
+                  icon: Icons.local_bar,
+                  label: 'Barra',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BarScreen()),
                   ),
                 ),
                 _QuickAction(

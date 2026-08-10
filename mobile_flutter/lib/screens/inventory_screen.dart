@@ -70,6 +70,126 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  Future<void> _confirmSetStock(BuildContext context, Product product) async {
+    final controller = TextEditingController(text: product.stock.toString());
+    String? errorText;
+
+    final newStock = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text('Ajustar existencias · ${product.name}'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Existencia real',
+                  errorText: errorText,
+                ),
+                onChanged: (_) {
+                  if (errorText != null) {
+                    setDialogState(() => errorText = null);
+                  }
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final value = int.tryParse(controller.text.trim());
+
+                    if (value == null || value < 0) {
+                      setDialogState(
+                        () => errorText = 'Ingresa un número entero, 0 o mayor',
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext, value);
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (newStock == null || !context.mounted) return;
+
+    final errorMessage = await context.read<ProductProvider>().setStock(
+          product.id,
+          newStock,
+        );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessage ?? 'Existencias ajustadas a $newStock'),
+      ),
+    );
+  }
+
+  Future<void> _confirmToggleActive(
+    BuildContext context,
+    Product product,
+  ) async {
+    final activating = !product.active;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(activating ? 'Activar producto' : 'Desactivar producto'),
+          content: Text(
+            activating
+                ? '¿Volver a mostrar "${product.name}" en Nueva orden?'
+                : '¿Ocultar "${product.name}" de Nueva orden? Sigue visible '
+                    'aquí y en el historial de ventas pasadas.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(activating ? 'Activar' : 'Desactivar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final errorMessage = await context.read<ProductProvider>().setActive(
+          product.id,
+          activating,
+        );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          errorMessage ??
+              '"${product.name}" ${activating ? 'activado' : 'desactivado'}',
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmDelete(
       BuildContext context,
       Product product,
@@ -246,24 +366,55 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(product.category),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  product.category,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                product.preparationArea == PreparationArea.bar
+                                    ? Icons.local_bar
+                                    : Icons.soup_kitchen,
+                                size: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                product.preparationArea == PreparationArea.bar
+                                    ? 'Barra'
+                                    : 'Cocina',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                    Chip(
-                      label: Text(
-                        product.active ? 'Activo' : 'Inactivo',
-                        style: TextStyle(
-                          color: product.active
-                              ? AppColors.secondary
-                              : AppColors.textSecondary,
-                          fontWeight: FontWeight.bold,
+                    InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => _confirmToggleActive(context, product),
+                      child: Chip(
+                        label: Text(
+                          product.active ? 'Activo' : 'Inactivo',
+                          style: TextStyle(
+                            color: product.active
+                                ? AppColors.secondary
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        backgroundColor: product.active
+                            ? AppColors.secondary.withValues(alpha: 0.15)
+                            : AppColors.surfaceHigh,
+                        side: BorderSide.none,
                       ),
-                      backgroundColor: product.active
-                          ? AppColors.secondary.withValues(alpha: 0.15)
-                          : AppColors.surfaceHigh,
-                      side: BorderSide.none,
                     ),
                     IconButton(
                       tooltip: 'Eliminar producto',
@@ -344,15 +495,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               : null,
                           icon: const Icon(Icons.remove),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          child: Text(
-                            product.stock.toString(),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => _confirmSetStock(context, product),
+                          child: Tooltip(
+                            message: 'Toca para ajustar la existencia exacta',
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                product.stock.toString(),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge,
+                              ),
+                            ),
                           ),
                         ),
                         IconButton.filled(

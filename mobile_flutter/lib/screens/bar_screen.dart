@@ -3,30 +3,29 @@ import 'package:provider/provider.dart';
 
 import '../models/order.dart';
 import '../models/product.dart';
+import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
-import '../providers/table_provider.dart';
-import '../theme/app_colors.dart';
 import '../widgets/comanda_card.dart';
 import '../widgets/stat_card.dart';
-
-import '../models/user.dart';
-import '../providers/auth_provider.dart';
 import 'login_screen.dart';
 
-List<OrderItem> kitchenItemsOf(FoodOrder order) {
+List<OrderItem> barItemsOf(FoodOrder order) {
   return order.items
-      .where((item) => item.product.preparationArea == PreparationArea.kitchen)
+      .where((item) => item.product.preparationArea == PreparationArea.bar)
       .toList();
 }
 
-class KitchenScreen extends StatefulWidget {
-  const KitchenScreen({super.key});
+/// Tablero de barra: solo muestra los productos de barra de cada
+/// comanda (bebidas, cócteles, etc.). A diferencia de Cocina, no
+/// permite cobrar ni cancelar — esas acciones son de cajero/admin.
+class BarScreen extends StatefulWidget {
+  const BarScreen({super.key});
 
   @override
-  State<KitchenScreen> createState() => _KitchenScreenState();
+  State<BarScreen> createState() => _BarScreenState();
 }
 
-class _KitchenScreenState extends State<KitchenScreen> {
+class _BarScreenState extends State<BarScreen> {
   @override
   void initState() {
     super.initState();
@@ -45,69 +44,22 @@ class _KitchenScreenState extends State<KitchenScreen> {
     );
   }
 
-  Future<void> confirmCancel(BuildContext context, FoodOrder order) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancelar orden'),
-          content: Text(
-            '¿Seguro que deseas cancelar la orden #${order.id}? '
-            'Esta acción no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('No'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-              child: const Text('Sí, cancelar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !context.mounted) return;
-
-    final errorMessage = await context.read<OrderProvider>().cancelOrder(
-      order.id,
-      tableProvider: context.read<TableProvider>(),
-    );
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(errorMessage ?? 'Orden cancelada')));
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OrderProvider>();
-    final isAdmin =
-        context.watch<AuthProvider>().currentUser?.role == UserRole.admin;
 
-    // Solo comandas que tienen al menos un producto de cocina.
+    // Solo comandas que tienen al menos un producto de barra.
     final orders = provider.activeOrders
-        .where((order) => kitchenItemsOf(order).isNotEmpty)
+        .where((order) => barItemsOf(order).isNotEmpty)
         .toList();
 
     final notReady = orders.where((o) => o.status != OrderStatus.ready).toList();
     final ready = orders.where((o) => o.status == OrderStatus.ready).length;
     final delayed = notReady.where(isDelayed).length;
 
-    final avgMinutes = notReady.isEmpty
-        ? 0
-        : (notReady.fold<int>(0, (sum, o) => sum + elapsedSince(o).inMinutes) /
-                  notReady.length)
-              .round();
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Comandas de cocina'),
+        title: const Text('Comandas de barra'),
         actions: [
           IconButton(
             tooltip: 'Cerrar sesión',
@@ -118,15 +70,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () => context.read<OrderProvider>().refresh(),
-        child: _buildBody(
-          provider,
-          orders,
-          isAdmin,
-          notReady.length,
-          ready,
-          avgMinutes,
-          delayed,
-        ),
+        child: _buildBody(provider, orders, notReady.length, ready, delayed),
       ),
     );
   }
@@ -134,10 +78,8 @@ class _KitchenScreenState extends State<KitchenScreen> {
   Widget _buildBody(
     OrderProvider provider,
     List<FoodOrder> orders,
-    bool isAdmin,
     int activeCount,
     int readyCount,
-    int avgMinutes,
     int delayedCount,
   ) {
     if (provider.isLoading && orders.isEmpty) {
@@ -178,14 +120,6 @@ class _KitchenScreenState extends State<KitchenScreen> {
             Expanded(
               child: StatCard(label: 'Listas', value: readyCount.toString()),
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(label: 'Tiempo prom.', value: '${avgMinutes}m'),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: StatCard(
@@ -201,7 +135,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
             padding: EdgeInsets.only(top: 60),
             child: Center(
               child: Text(
-                'No hay comandas de cocina pendientes',
+                'No hay comandas de barra pendientes',
                 style: TextStyle(fontSize: 18),
               ),
             ),
@@ -210,11 +144,9 @@ class _KitchenScreenState extends State<KitchenScreen> {
           ...orders.map(
             (order) => ComandaCard(
               order: order,
-              displayItems: kitchenItemsOf(order),
+              displayItems: barItemsOf(order),
               hasOtherStationItems:
-                  kitchenItemsOf(order).length != order.items.length,
-              allowCancel: isAdmin,
-              onCancel: confirmCancel,
+                  barItemsOf(order).length != order.items.length,
             ),
           ),
       ],

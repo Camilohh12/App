@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Paleta del sistema de diseño oscuro de ComandaPOS (inspirado en
-/// el mockup "QuickPOS"): fondo azul marino, tarjetas oscuras
-/// elevadas, y acentos de color por función.
+/// Paleta del sistema de diseño oscuro de ComandaPOS. El fondo azul
+/// marino y la estructura de tarjetas vienen del mockup original
+/// "QuickPOS"; el color primario se cambió a un vino/borgoña para
+/// darle identidad visual de bar (sección 13), evitando el ámbar
+/// porque ya lo usa [tertiary] para alertas de stock/"para llevar".
 class AppColors {
   AppColors._();
 
@@ -11,7 +13,7 @@ class AppColors {
   static const Color surfaceHigh = Color(0xFF334155);
   static const Color border = Color(0xFF334155);
 
-  static const Color primary = Color(0xFF3B82F6);
+  static const Color primary = Color(0xFF9D2449);
   static const Color secondary = Color(0xFF22C55E);
   static const Color tertiary = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFEF4444);

@@ -11,8 +11,10 @@ import '../services/api_client.dart';
 import '../theme/app_colors.dart';
 import 'admin_shell_screen.dart';
 import '../models/user.dart';
+import 'bar_screen.dart';
 import 'cashier_shell_screen.dart';
 import 'kitchen_screen.dart';
+import 'waiter_home_screen.dart';
 
 enum _ConnectionStatus { checking, connected, disconnected }
 
@@ -146,6 +148,14 @@ class _LoginScreenState extends State<LoginScreen> {
       case UserRole.kitchen:
         destination = const KitchenScreen();
         break;
+
+      case UserRole.waiter:
+        destination = const WaiterHomeScreen();
+        break;
+
+      case UserRole.bar:
+        destination = const BarScreen();
+        break;
     }
 
     Navigator.pushReplacement(
@@ -184,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'ComandaPOS',
+                    'ComandaPOS Bar',
                     style: Theme.of(context)
                         .textTheme
                         .headlineMedium
